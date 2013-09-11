@@ -276,6 +276,7 @@ Discourse.Dialect = {
         lineNumber = blockLine + b.split("\n").length - 1;
 
         if (endFound !== -1) {
+          console.log('end found')
           if (trailingContents) {
             next.unshift(MD.mk_block(trailingContents));
           }

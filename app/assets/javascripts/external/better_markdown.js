@@ -12,6 +12,8 @@
 
   * Fix to blockquote to handle spaces in front and when nested.
 
+  * Rearranges src attribute on images to be first.
+
   * Note the name BetterMarkdown doesn't mean it's *better* than markdown-js, it refers
     to it being better than our previous markdown parser!
 
@@ -1223,6 +1225,13 @@ function render_tree( jsonml ) {
   }
 
   var tag_attrs = "";
+
+  // MDTest has src attributes first
+  if (typeof attributes.src !== 'undefined') {
+    tag_attrs += ' src="' + escapeHTML( attributes.src ) + '"';
+    delete attributes.src;
+  }
+
   for ( var a in attributes ) {
     tag_attrs += " " + a + '="' + escapeHTML( attributes[ a ] ) + '"';
   }
