@@ -21,6 +21,158 @@ Discourse.TopicController = Discourse.ObjectController.extend(Discourse.Selected
     this.set('selectedReplies', new Em.Set());
   },
 
+  actions: {
+    jumpTop: function() {
+      Discourse.URL.routeTo(this.get('url'));
+    },
+
+    jumpBottom: function() {
+      Discourse.URL.routeTo(this.get('lastPostUrl'));
+    },
+
+    toggleSummary: function() {
+      this.toggleProperty('summaryCollapsed');
+    },
+
+    selectAll: function() {
+      var posts = this.get('postStream.posts');
+      var selectedPosts = this.get('selectedPosts');
+      if (posts) {
+        selectedPosts.addObjects(posts);
+      }
+      this.set('allPostsSelected', true);
+    },
+
+    deselectAll: function() {
+      this.get('selectedPosts').clear();
+      this.get('selectedReplies').clear();
+      this.set('allPostsSelected', false);
+    },
+
+    /**
+      Toggle a participant for filtering
+
+      @method toggleParticipant
+    **/
+    toggleParticipant: function(user) {
+      this.get('postStream').toggleParticipant(Em.get(user, 'username'));
+    },
+
+    editTopic: function() {
+      if (!this.get('details.can_edit')) return false;
+
+      this.setProperties({
+        editingTopic: true,
+        newTitle: this.get('title'),
+        newCategoryId: this.get('category_id')
+      });
+      return false;
+    },
+
+    // close editing mode
+    cancelEditingTopic: function() {
+      this.set('editingTopic', false);
+    },
+
+    toggleMultiSelect: function() {
+      this.toggleProperty('multiSelect');
+    },
+
+    finishedEditingTopic: function() {
+      var topicController = this;
+      if (this.get('editingTopic')) {
+
+        var topic = this.get('model');
+
+        // Topic title hasn't been sanitized yet, so the template shouldn't trust it.
+        this.set('topicSaving', true);
+
+        // manually update the titles & category
+        topic.setProperties({
+          title: this.get('newTitle'),
+          category_id: parseInt(this.get('newCategoryId'), 10),
+          fancy_title: this.get('newTitle')
+        });
+
+        // save the modifications
+        topic.save().then(function(result){
+          // update the title if it has been changed (cleaned up) server-side
+          var title       = result.basic_topic.title;
+          var fancy_title = result.basic_topic.fancy_title;
+          topic.setProperties({
+            title: title,
+            fancy_title: fancy_title
+          });
+          topicController.set('topicSaving', false);
+        }, function(error) {
+          topicController.set('editingTopic', true);
+          topicController.set('topicSaving', false);
+          if (error && error.responseText) {
+            bootbox.alert($.parseJSON(error.responseText).errors[0]);
+          } else {
+            bootbox.alert(I18n.t('generic_error'));
+          }
+        });
+
+        // close editing mode
+        topicController.set('editingTopic', false);
+      }
+    },
+
+    toggledSelectedPost: function(post) {
+      var selectedPosts = this.get('selectedPosts');
+      if (this.postSelected(post)) {
+        this.deselectPost(post);
+        return false;
+      } else {
+        selectedPosts.addObject(post);
+
+        // If the user manually selects all posts, all posts are selected
+        if (selectedPosts.length === this.get('posts_count')) {
+          this.set('allPostsSelected', true);
+        }
+        return true;
+      }
+    },
+
+    toggledSelectedPostReplies: function(post) {
+      var selectedReplies = this.get('selectedReplies');
+      if (this.send('toggledSelectedPost', post)) {
+        selectedReplies.addObject(post);
+      } else {
+        selectedReplies.removeObject(post);
+      }
+    },
+
+    deleteSelected: function() {
+      var self = this;
+      bootbox.confirm(I18n.t("post.delete.confirm", { count: this.get('selectedPostsCount')}), function(result) {
+        if (result) {
+
+          // If all posts are selected, it's the same thing as deleting the topic
+          if (self.get('allPostsSelected')) {
+            return self.deleteTopic();
+          }
+
+          var selectedPosts = self.get('selectedPosts'),
+              selectedReplies = self.get('selectedReplies'),
+              postStream = self.get('postStream'),
+              toRemove = new Ember.Set();
+
+
+          Discourse.Post.deleteMany(selectedPosts, selectedReplies);
+          postStream.get('posts').forEach(function (p) {
+            if (self.postSelected(p)) { toRemove.addObject(p); }
+          });
+
+          postStream.removePosts(toRemove);
+          self.send('toggleMultiSelect');
+        }
+      });
+    },
+
+  },
+
   jumpTopDisabled: function() {
     return (this.get('progressPosition') === 1);
   }.property('postStream.filteredPostsCount', 'progressPosition'),
@@ -107,156 +259,6 @@ Discourse.TopicController = Discourse.ObjectController.extend(Discourse.Selected
     if (this.get('selectedReplies').findProperty('post_number', post.get('reply_to_post_number'))) { return true; }
 
     return false;
-  },
-
-  toggledSelectedPost: function(post) {
-    var selectedPosts = this.get('selectedPosts');
-    if (this.postSelected(post)) {
-      this.deselectPost(post);
-      return false;
-    } else {
-      selectedPosts.addObject(post);
-
-      // If the user manually selects all posts, all posts are selected
-      if (selectedPosts.length === this.get('posts_count')) {
-        this.set('allPostsSelected', true);
-      }
-      return true;
-    }
-  },
-
-  toggledSelectedPostReplies: function(post) {
-    var selectedReplies = this.get('selectedReplies');
-    if (this.toggledSelectedPost(post)) {
-      selectedReplies.addObject(post);
-    } else {
-      selectedReplies.removeObject(post);
-    }
-  },
-
-  selectAll: function() {
-    var posts = this.get('postStream.posts');
-    var selectedPosts = this.get('selectedPosts');
-    if (posts) {
-      selectedPosts.addObjects(posts);
-    }
-    this.set('allPostsSelected', true);
-  },
-
-  deselectAll: function() {
-    this.get('selectedPosts').clear();
-    this.get('selectedReplies').clear();
-    this.set('allPostsSelected', false);
-  },
-
-  toggleMultiSelect: function() {
-    this.toggleProperty('multiSelect');
-  },
-
-  toggleSummary: function() {
-    this.toggleProperty('summaryCollapsed');
-  },
-
-  editTopic: function() {
-    if (!this.get('details.can_edit')) return false;
-
-    this.setProperties({
-      editingTopic: true,
-      newTitle: this.get('title'),
-      newCategoryId: this.get('category_id')
-    });
-    return false;
-  },
-
-  // close editing mode
-  cancelEditingTopic: function() {
-    this.set('editingTopic', false);
-  },
-
-  finishedEditingTopic: function() {
-    var topicController = this;
-    if (this.get('editingTopic')) {
-
-      var topic = this.get('model');
-
-      // Topic title hasn't been sanitized yet, so the template shouldn't trust it.
-      this.set('topicSaving', true);
-
-      // manually update the titles & category
-      topic.setProperties({
-        title: this.get('newTitle'),
-        category_id: parseInt(this.get('newCategoryId'), 10),
-        fancy_title: this.get('newTitle')
-      });
-
-      // save the modifications
-      topic.save().then(function(result){
-        // update the title if it has been changed (cleaned up) server-side
-        var title       = result.basic_topic.title;
-        var fancy_title = result.basic_topic.fancy_title;
-        topic.setProperties({
-          title: title,
-          fancy_title: fancy_title
-        });
-        topicController.set('topicSaving', false);
-      }, function(error) {
-        topicController.set('editingTopic', true);
-        topicController.set('topicSaving', false);
-        if (error && error.responseText) {
-          bootbox.alert($.parseJSON(error.responseText).errors[0]);
-        } else {
-          bootbox.alert(I18n.t('generic_error'));
-        }
-      });
-
-      // close editing mode
-      topicController.set('editingTopic', false);
-    }
-  },
-
-  deleteSelected: function() {
-    var self = this;
-    bootbox.confirm(I18n.t("post.delete.confirm", { count: this.get('selectedPostsCount')}), function(result) {
-      if (result) {
-
-        // If all posts are selected, it's the same thing as deleting the topic
-        if (self.get('allPostsSelected')) {
-          return self.deleteTopic();
-        }
-
-        var selectedPosts = self.get('selectedPosts'),
-            selectedReplies = self.get('selectedReplies'),
-            postStream = self.get('postStream'),
-            toRemove = new Ember.Set();
-
-
-        Discourse.Post.deleteMany(selectedPosts, selectedReplies);
-        postStream.get('posts').forEach(function (p) {
-          if (self.postSelected(p)) { toRemove.addObject(p); }
-        });
-
-        postStream.removePosts(toRemove);
-        self.toggleMultiSelect();
-      }
-    });
-  },
-
-  jumpTop: function() {
-    Discourse.URL.routeTo(this.get('url'));
-  },
-
-  jumpBottom: function() {
-    Discourse.URL.routeTo(this.get('lastPostUrl'));
-  },
-
-
-  /**
-    Toggle a participant for filtering
-
-    @method toggleParticipant
-  **/
-  toggleParticipant: function(user) {
-    this.get('postStream').toggleParticipant(Em.get(user, 'username'));
   },
 
   showFavoriteButton: function() {

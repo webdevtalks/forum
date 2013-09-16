@@ -39,16 +39,18 @@ Discourse.EditCategoryController = Discourse.ObjectController.extend(Discourse.M
     this.set('controllers.modal.title', this.get('title'));
   }.observes('title'),
 
-  selectGeneral: function() {
-    this.set('selectedTab', 'general');
-  },
+  actions: {
+    selectGeneral: function() {
+      this.set('selectedTab', 'general');
+    },
 
-  selectSecurity: function() {
-    this.set('selectedTab', 'security');
-  },
+    selectSecurity: function() {
+      this.set('selectedTab', 'security');
+    },
 
-  selectSettings: function() {
-    this.set('selectedTab', 'settings');
+    selectSettings: function() {
+      this.set('selectedTab', 'settings');
+    }
   },
 
   disabled: function() {
