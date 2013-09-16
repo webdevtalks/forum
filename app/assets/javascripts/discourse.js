@@ -28,7 +28,7 @@ Discourse = Ember.Application.createWithMixins(Discourse.Ajax, {
     return u + url;
   },
 
-  resolver: Discourse.Resolver,
+  Resolver: Discourse.Resolver,
 
   titleChanged: function() {
     var title = "";
