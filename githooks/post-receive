@@ -27,5 +27,5 @@ bundle exec rake db:migrate
 echo '* compiling assets'
 bundle exec rake assets:precompile
 
-# echo '* restart webserver'
-# [[ -f tmp/pids/puma.pid ]] && env -i sv restart discourse_app
+echo '* restart webserver'
+[[ -f tmp/pids/puma.pid ]] && env -i sv restart discourse_app
